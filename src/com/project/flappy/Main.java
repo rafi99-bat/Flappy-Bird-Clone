@@ -8,6 +8,8 @@ import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
 import org.lwjgl.opengl.PixelFormat;
 
+import com.project.flappy.util.ShaderUtils;
+
 public class Main implements Runnable {
 	
 	private int width = 1280;
