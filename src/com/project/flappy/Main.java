@@ -1,5 +1,7 @@
 package com.project.flappy;
 
+import static org.lwjgl.opengl.GL11.*;
+
 import org.lwjgl.LWJGLException;
 import org.lwjgl.opengl.ContextAttribs;
 import org.lwjgl.opengl.Display;
@@ -10,7 +12,7 @@ public class Main implements Runnable {
 	
 	private int width = 1280;
 	private int height = 720;
-	private String title = "Flappy Bird";
+	private String title = "Flappy";
 	
 	private boolean running = false;
 	private Thread thread;
@@ -19,6 +21,13 @@ public class Main implements Runnable {
 		running = true;
 		thread = new Thread(this, "Display");
 		thread.start();
+	}
+	
+	private void init() {
+		String version = glGetString(GL_VERSION);
+		System.out.println("OpenGL " + version);
+		
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 	
 	public void run() {
@@ -31,12 +40,19 @@ public class Main implements Runnable {
 			e.printStackTrace();
 		}
 		
+		init();
+		
 		while(running) {
+			render();
 			Display.update();
 			if(Display.isCloseRequested())
 				running = false;
 		}
 		Display.destroy();
+	}
+	
+	private void render() {
+		glClear(GL_COLOR_BUFFER_BIT);
 	}
 	
 	public static void main(String[] args) {
