@@ -1,76 +1,131 @@
 package com.project.flappy;
 
+import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL20.*;
-import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL13.*;
+import static org.lwjgl.system.MemoryUtil.*;
 
-import org.lwjgl.LWJGLException;
-import org.lwjgl.opengl.ContextAttribs;
-import org.lwjgl.opengl.Display;
-import org.lwjgl.opengl.DisplayMode;
-import org.lwjgl.opengl.PixelFormat;
+import org.lwjgl.glfw.GLFWVidMode;
+import org.lwjgl.opengl.GL;
 
 import com.project.flappy.graphics.Shader;
-import com.project.flappy.math.Vector3f;
-import com.project.flappy.util.ShaderUtils;
+import com.project.flappy.input.Input;
+import com.project.flappy.math.Matrix4f;
+import com.project.flappy.level.Level;
 
 public class Main implements Runnable {
-	
+
 	private int width = 1280;
 	private int height = 720;
-	private String title = "Flappy";
-	
-	private boolean running = false;
+
 	private Thread thread;
-	
+	private boolean running = false;
+
+	private long window;
+
+	private Level level;
+
 	public void start() {
 		running = true;
-		thread = new Thread(this, "Display");
+		thread = new Thread(this, "Game");
 		thread.start();
 	}
-	
+
 	private void init() {
-		String version = glGetString(GL_VERSION);
-		System.out.println("OpenGL " + version);
-		
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-		
-		Shader.loadAll();
-	}
-	
-	public void run() {
-		try {
-			Display.setDisplayMode(new DisplayMode(width, height));
-			Display.setTitle(title);
-			ContextAttribs context = new ContextAttribs(3, 3);
-			Display.create(new PixelFormat(), context.withProfileCore(true));
-		} catch (LWJGLException e) {
-			e.printStackTrace();
+		if (!glfwInit()) {
+			System.err.println("Could not initialize GLFW!");
+			return;
 		}
-		
+
+		glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
+		window = glfwCreateWindow(width, height, "Angry Flappy", NULL, NULL);
+		if (window == NULL) {
+			System.err.println("Could not create GLFW window!");
+			return;
+		}
+
+		GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		glfwSetWindowPos(window, (vidmode.width() - width) / 2, (vidmode.height() - height) / 2);
+		glfwSetKeyCallback(window, new Input());
+
+		glfwMakeContextCurrent(window);
+		glfwShowWindow(window);
+
+		GL.createCapabilities();
+
+		glEnable(GL_DEPTH_TEST);
+		glActiveTexture(GL_TEXTURE1);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		System.out.println("OpenGL: " + glGetString(GL_VERSION));
+		Shader.loadAll();
+
+		Matrix4f pr_matrix = Matrix4f.orthographic(-10.0f, 10.0f, -10.0f * 9.0f / 16.0f, 10.0f * 9.0f / 16.0f, -1.0f, 1.0f);
+		Shader.BG.setUniformMat4f("pr_matrix", pr_matrix);
+		Shader.BG.setUniform1i("tex", 1);
+
+		Shader.BIRD.setUniformMat4f("pr_matrix", pr_matrix);
+		Shader.BIRD.setUniform1i("tex", 1);
+
+		Shader.PIPE.setUniformMat4f("pr_matrix", pr_matrix);
+		Shader.PIPE.setUniform1i("tex", 1);
+
+		level = new Level();
+	}
+
+	public void run() {
 		init();
-		
-		int vao = glGenVertexArrays();
-		glBindVertexArray(vao);
-		
-		Shader shader = Shader.BASIC;
-		shader.enable();
-		shader.setUniform3f("col", new Vector3f(0.8f, 0.2f, 0.3f));
-		
-		while(running) {
+
+		long lastTime = System.nanoTime();
+		double delta = 0.0;
+		double ns = 1000000000.0 / 60.0;
+		long timer = System.currentTimeMillis();
+		int updates = 0;
+		int frames = 0;
+		while (running) {
+			long now = System.nanoTime();
+			delta += (now - lastTime) / ns;
+			lastTime = now;
+			if (delta >= 1.0) {
+				update();
+				updates++;
+				delta--;
+			}
 			render();
-			Display.update();
-			if(Display.isCloseRequested())
+			frames++;
+			if (System.currentTimeMillis() - timer > 1000) {
+				timer += 1000;
+				System.out.println(updates + " ups, " + frames + " fps");
+				updates = 0;
+				frames = 0;
+			}
+			if (glfwWindowShouldClose(window))
 				running = false;
 		}
-		Display.destroy();
+
+		glfwDestroyWindow(window);
+		glfwTerminate();
 	}
-	
+
+	private void update() {
+		glfwPollEvents();
+		level.update();
+		if (level.isGameOver()) {
+			level = new Level();
+		}
+	}
+
 	private void render() {
-		glClear(GL_COLOR_BUFFER_BIT);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		level.render();
+
+		int error = glGetError();
+		if (error != GL_NO_ERROR)
+			System.out.println(error);
+
+		glfwSwapBuffers(window);
 	}
-	
+
 	public static void main(String[] args) {
 		new Main().start();
 	}
